@@ -241,27 +241,27 @@ const ChatRoom = ({ socket, username, onLeave }) => {
                 sdpSemantics: 'unified-plan',
                 iceServers: [
                     {
-                        urls: "stun:stun.relay.metered.ca:80",
+                      urls: "stun:stun.relay.metered.ca:80",
                     },
                     {
-                        urls: "turn:eu-central.relay.metered.ca:80",
-                        username: String(process.env.REACT_APP_TURN_USERNAME),
-                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                      urls: "turn:eu-central.relay.metered.ca:80",
+                      username: "f10c718ea752e8c5571f4bae",
+                      credential: "PjC8KO6w3I3AK5pW",
                     },
                     {
-                        urls: "turn:eu-central.relay.metered.ca:80?transport=tcp",
-                        username: String(process.env.REACT_APP_TURN_USERNAME),
-                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                      urls: "turn:eu-central.relay.metered.ca:80?transport=tcp",
+                      username: "f10c718ea752e8c5571f4bae",
+                      credential: "PjC8KO6w3I3AK5pW",
                     },
                     {
-                        urls: "turn:eu-central.relay.metered.ca:443",
-                        username: String(process.env.REACT_APP_TURN_USERNAME),
-                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                      urls: "turn:eu-central.relay.metered.ca:443",
+                      username: "f10c718ea752e8c5571f4bae",
+                      credential: "PjC8KO6w3I3AK5pW",
                     },
                     {
-                        urls: "turns:eu-central.relay.metered.ca:443?transport=tcp",
-                        username: String(process.env.REACT_APP_TURN_USERNAME),
-                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                      urls: "turns:eu-central.relay.metered.ca:443?transport=tcp",
+                      username: "f10c718ea752e8c5571f4bae",
+                      credential: "PjC8KO6w3I3AK5pW",
                     }
                 ]
             }
@@ -491,28 +491,28 @@ const ChatRoom = ({ socket, username, onLeave }) => {
                     config: {
                         iceServers: [
                             {
-                                urls: "stun:stun.relay.metered.ca:80",
+                              urls: "stun:stun.relay.metered.ca:80",
                             },
                             {
-                                urls: "turn:eu-central.relay.metered.ca:80",
-                                username: String(process.env.REACT_APP_TURN_USERNAME),
-                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                              urls: "turn:eu-central.relay.metered.ca:80",
+                              username: "f10c718ea752e8c5571f4bae",
+                              credential: "PjC8KO6w3I3AK5pW",
                             },
                             {
-                                urls: "turn:eu-central.relay.metered.ca:80?transport=tcp",
-                                username: String(process.env.REACT_APP_TURN_USERNAME),
-                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                              urls: "turn:eu-central.relay.metered.ca:80?transport=tcp",
+                              username: "f10c718ea752e8c5571f4bae",
+                              credential: "PjC8KO6w3I3AK5pW",
                             },
                             {
-                                urls: "turn:eu-central.relay.metered.ca:443",
-                                username: String(process.env.REACT_APP_TURN_USERNAME),
-                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                              urls: "turn:eu-central.relay.metered.ca:443",
+                              username: "f10c718ea752e8c5571f4bae",
+                              credential: "PjC8KO6w3I3AK5pW",
                             },
                             {
-                                urls: "turns:eu-central.relay.metered.ca:443?transport=tcp",
-                                username: String(process.env.REACT_APP_TURN_USERNAME),
-                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
-                            }
+                              urls: "turns:eu-central.relay.metered.ca:443?transport=tcp",
+                              username: "f10c718ea752e8c5571f4bae",
+                              credential: "PjC8KO6w3I3AK5pW",
+                            },
                         ]
                     }
                 });
