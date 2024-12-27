@@ -186,32 +186,28 @@ const ChatRoom = ({ socket, username, onLeave }) => {
         socket.on('voice-signal', async ({ from, signal, type }) => {
             console.log(`Ses sinyali alındı: ${from}, tip: ${type}`);
             try {
-                if (!peersRef.current[from]) {
-                    const peer = createAudioPeer(from, audioStream.current, false);
+                let peer = peersRef.current[from];
+                
+                if (!peer) {
+                    console.log(`${from} için yeni peer oluşturuluyor`);
+                    peer = createAudioPeer(from, audioStream.current, false);
                     peersRef.current[from] = peer;
                 }
 
-                const peer = peersRef.current[from];
-                
-                // Sinyal durumunu kontrol et
                 if (type === 'offer' && peer.initiator) {
-                    // Çakışma durumunda yeni peer oluştur
+                    console.log(`Çakışma tespit edildi, peer yeniden oluşturuluyor`);
                     peer.destroy();
-                    const newPeer = createAudioPeer(from, audioStream.current, false);
-                    peersRef.current[from] = newPeer;
-                    await newPeer.signal(signal);
-                } else {
-                    await peer.signal(signal);
+                    peer = createAudioPeer(from, audioStream.current, false);
+                    peersRef.current[from] = peer;
                 }
 
+                await peer.signal(signal);
             } catch (error) {
                 console.error(`Sinyal işleme hatası (${from}):`, error);
             }
         });
 
-        return () => {
-            socket.off('voice-signal');
-        };
+        return () => socket.off('voice-signal');
     }, []);
 
     const cleanupAudioConnections = () => {
@@ -227,52 +223,79 @@ const ChatRoom = ({ socket, username, onLeave }) => {
     };
 
     const createAudioPeer = (targetUser, stream, isInitiator) => {
+        console.log(`${targetUser} için yeni peer oluşturuluyor (initiator: ${isInitiator})`);
+        
+        // Mevcut peer'ı temizle
         if (peersRef.current[targetUser]) {
-            console.log(`${targetUser} için mevcut bağlantı kapatılıyor`);
+            console.log(`${targetUser} için mevcut peer temizleniyor`);
             peersRef.current[targetUser].destroy();
             delete peersRef.current[targetUser];
         }
 
         const peer = new Peer({
             initiator: isInitiator,
-            trickle: false,
-            reconnectTimer: 1000,
-            iceTransportPolicy: 'all',
+            trickle: true, // ICE adaylarının kademeli olarak gönderilmesine izin ver
+            stream: stream,
             config: {
+                iceTransportPolicy: 'relay', // Sadece TURN sunucularını kullan
+                sdpSemantics: 'unified-plan',
                 iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
+                    {
+                        urls: "stun:stun.relay.metered.ca:80",
+                    },
+                    {
+                        urls: "turn:eu-central.relay.metered.ca:80",
+                        username: String(process.env.REACT_APP_TURN_USERNAME),
+                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                    },
+                    {
+                        urls: "turn:eu-central.relay.metered.ca:80?transport=tcp",
+                        username: String(process.env.REACT_APP_TURN_USERNAME),
+                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                    },
+                    {
+                        urls: "turn:eu-central.relay.metered.ca:443",
+                        username: String(process.env.REACT_APP_TURN_USERNAME),
+                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                    },
+                    {
+                        urls: "turns:eu-central.relay.metered.ca:443?transport=tcp",
+                        username: String(process.env.REACT_APP_TURN_USERNAME),
+                        credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                    }
                 ]
-            },
-            stream: stream
+            }
         });
 
-        let connectionTimeout = null;
+        // ICE bağlantı durumu değişikliklerini izle
+        peer.on('iceStateChange', (state) => {
+            console.log(`${targetUser} ICE durumu: ${state}`);
+            if (state === 'disconnected' || state === 'failed') {
+                console.log(`${targetUser} ile ICE bağlantısı başarısız, yeniden deneniyor`);
+                // Peer'ı yeniden oluştur
+                peer.destroy();
+                const newPeer = createAudioPeer(targetUser, stream, true);
+                peersRef.current[targetUser] = newPeer;
+            }
+        });
 
         peer.on('connect', () => {
             console.log(`${targetUser} ile bağlantı kuruldu`);
-            if (connectionTimeout) {
-                clearTimeout(connectionTimeout);
-                connectionTimeout = null;
-            }
+            setConnectionStatus('connected');
         });
 
         peer.on('signal', signal => {
-            if (!peer.connected || signal.type === 'offer') {
-                console.log(`${targetUser}'a sinyal gönderiliyor (${signal.type})`);
-                socket.emit('voice-signal', {
-                    to: targetUser,
-                    signal: signal,
-                    type: signal.type
-                });
-            }
+            console.log(`${targetUser}'a sinyal gönderiliyor:`, signal.type);
+            socket.emit('voice-signal', {
+                to: targetUser,
+                signal,
+                type: signal.type
+            });
         });
 
         peer.on('stream', remoteStream => {
             console.log(`${targetUser}'dan ses akışı alındı`);
-            if (audioElements.current[targetUser]) {
-                audioElements.current[targetUser].srcObject = remoteStream;
-            } else {
+            if (!audioElements.current[targetUser]) {
                 const audio = new Audio();
                 audio.srcObject = remoteStream;
                 audio.autoplay = true;
@@ -281,35 +304,22 @@ const ChatRoom = ({ socket, username, onLeave }) => {
         });
 
         peer.on('error', error => {
-            console.error(`Peer hatası (${targetUser}):`, error);
-            if (peersRef.current[targetUser] === peer) {
-                delete peersRef.current[targetUser];
-            }
-            if (audioElements.current[targetUser]) {
-                audioElements.current[targetUser].srcObject = null;
-                delete audioElements.current[targetUser];
+            console.error(`${targetUser} peer hatası:`, error.message);
+            // Sadece kritik hatalarda yeniden bağlan
+            if (error.code === 'ERR_CONNECTION_FAILURE') {
+                peer.destroy();
+                const newPeer = createAudioPeer(targetUser, stream, true);
+                peersRef.current[targetUser] = newPeer;
             }
         });
 
         peer.on('close', () => {
             console.log(`${targetUser} ile bağlantı kapandı`);
-            if (peersRef.current[targetUser] === peer) {
-                delete peersRef.current[targetUser];
-            }
             if (audioElements.current[targetUser]) {
                 audioElements.current[targetUser].srcObject = null;
                 delete audioElements.current[targetUser];
             }
         });
-
-        // Bağlantı zaman aşımı kontrolü
-        connectionTimeout = setTimeout(() => {
-            if (peer.connected) return;
-            console.log(`${targetUser} ile bağlantı zaman aşımına uğradı, yeniden deneniyor`);
-            peer.destroy();
-            const newPeer = createAudioPeer(targetUser, stream, true);
-            peersRef.current[targetUser] = newPeer;
-        }, 10000);
 
         return peer;
     };
@@ -480,8 +490,29 @@ const ChatRoom = ({ socket, username, onLeave }) => {
                     trickle: false,
                     config: {
                         iceServers: [
-                            { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' }
+                            {
+                                urls: "stun:stun.relay.metered.ca:80",
+                            },
+                            {
+                                urls: "turn:eu-central.relay.metered.ca:80",
+                                username: String(process.env.REACT_APP_TURN_USERNAME),
+                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                            },
+                            {
+                                urls: "turn:eu-central.relay.metered.ca:80?transport=tcp",
+                                username: String(process.env.REACT_APP_TURN_USERNAME),
+                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                            },
+                            {
+                                urls: "turn:eu-central.relay.metered.ca:443",
+                                username: String(process.env.REACT_APP_TURN_USERNAME),
+                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                            },
+                            {
+                                urls: "turns:eu-central.relay.metered.ca:443?transport=tcp",
+                                username: String(process.env.REACT_APP_TURN_USERNAME),
+                                credential: String(process.env.REACT_APP_TURN_CREDENTIAL),
+                            }
                         ]
                     }
                 });
